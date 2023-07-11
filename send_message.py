@@ -44,7 +44,11 @@ with open(number_filename, newline='') as csvfile:
             number = row[0].replace(" ", "").replace("-", "")
             if number not in cleaned_numbers:
                 print(number)
-                now = datetime.now()
+                while True:
+                    now = datetime.now()
+                    if now.minute+1<59:
+                        break
+                    time.sleep(1)
                 pywhatkit.sendwhatmsg(number, message, now.hour, now.minute+1)
                 pyautogui.moveTo(mouse_pos_x, mouse_pos_y)
                 pyautogui.click(mouse_pos_x, mouse_pos_y)
