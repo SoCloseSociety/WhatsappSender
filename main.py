@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-SoClose Community Bot — Entry Point
-WhatsApp bot for the SoCloseSociety open-source community.
+WhatsApp Bulk Sender — Entry Point
+Simple bulk WhatsApp message sender with CSV import.
 
 Usage:
     python main.py              # CLI mode (default)
     python main.py --telegram   # Telegram bot + webhook server
     python main.py --dashboard  # Streamlit web dashboard
-    python main.py --webhook    # Webhook server only (no Telegram)
+    python main.py --webhook    # Webhook server only
 """
 
 import argparse
@@ -20,7 +20,7 @@ import threading
 
 import config
 
-# ── Logging ───────────────────────────────────────────────────
+# -- Logging ---------------------------------------------------
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,17 +30,27 @@ logging.basicConfig(
 logger = logging.getLogger("main")
 
 
-# ── Dependency Check ──────────────────────────────────────────
+# -- Dependency Check ------------------------------------------
 
-def check_dependencies():
-    """Verify all required packages are installed."""
+def check_dependencies(mode: str = "cli"):
+    """Verify required packages are installed for the given mode."""
     required = [
         ("dotenv", "python-dotenv"),
         ("aiosqlite", "aiosqlite"),
         ("requests", "requests"),
-        ("fastapi", "fastapi"),
-        ("uvicorn", "uvicorn"),
+        ("pandas", "pandas"),
+        ("phonenumbers", "phonenumbers"),
     ]
+
+    if mode == "telegram":
+        required.append(("telegram", "python-telegram-bot"))
+        required.append(("uvicorn", "uvicorn"))
+    elif mode == "webhook":
+        required.append(("fastapi", "fastapi"))
+        required.append(("uvicorn", "uvicorn"))
+    elif mode == "dashboard":
+        required.append(("streamlit", "streamlit"))
+
     missing = []
     for module, package in required:
         try:
@@ -54,10 +64,10 @@ def check_dependencies():
         sys.exit(1)
 
 
-# ── Modes ─────────────────────────────────────────────────────
+# -- Modes -----------------------------------------------------
 
 async def run_cli_mode():
-    """Interactive CLI for local testing."""
+    """Interactive CLI for local testing and sending."""
     from cli import run_cli
     await run_cli()
 
@@ -65,14 +75,12 @@ async def run_cli_mode():
 async def run_telegram_mode():
     """Telegram bot + FastAPI webhook server."""
     import database
-    import github_api
 
     await database.init()
-    await github_api.sync_projects()
 
     # Mark as initialized so webhook lifespan doesn't double-init
     import webhook
-    webhook._initialized = True
+    webhook.mark_initialized()
 
     # Start webhook server in background thread
     import uvicorn
@@ -101,7 +109,6 @@ async def run_telegram_mode():
         logger.info(f"{config.BOT_NAME} is running! (Telegram + Webhook)")
         logger.info(f"Health check: http://localhost:{config.WEBHOOK_PORT}/health")
 
-        # Keep running until interrupted
         try:
             while True:
                 await asyncio.sleep(3600)
@@ -113,7 +120,7 @@ async def run_telegram_mode():
 
 
 async def run_webhook_mode():
-    """FastAPI webhook server only (no Telegram)."""
+    """FastAPI webhook server only."""
     import uvicorn
     from webhook import app as fastapi_app
 
@@ -143,19 +150,17 @@ def run_dashboard_mode():
     )
 
 
-# ── Main ──────────────────────────────────────────────────────
+# -- Main ------------------------------------------------------
 
 def main():
-    check_dependencies()
-
     parser = argparse.ArgumentParser(
         description=f"{config.BOT_NAME} v{config.BOT_VERSION}",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Modes:
-  (default)     CLI interactif pour tests locaux
+  (default)     CLI interactif — import CSV, envoi en masse
   --telegram    Bot Telegram + serveur webhook
-  --webhook     Serveur webhook seul (auto-reply WhatsApp)
+  --webhook     Serveur webhook seul (callbacks de livraison)
   --dashboard   Dashboard web Streamlit
 
 Exemples:
@@ -170,15 +175,18 @@ Exemples:
     parser.add_argument("--dashboard", action="store_true", help="Lancer le dashboard Streamlit")
     args = parser.parse_args()
 
+    # Determine mode and check dependencies
+    mode = "telegram" if args.telegram else "webhook" if args.webhook else "dashboard" if args.dashboard else "cli"
+    check_dependencies(mode)
+
     # Show config warnings
     warnings = config.validate()
     if warnings:
         for w in warnings:
             logger.warning(w)
 
-    print(f"\n🤖 {config.BOT_NAME} v{config.BOT_VERSION}")
-    print(f"   Provider: {config.WA_PROVIDER.upper()}")
-    print(f"   GitHub: {config.COMMUNITY_URL}\n")
+    print(f"\n📱 {config.BOT_NAME} v{config.BOT_VERSION}")
+    print(f"   Provider: {config.WA_PROVIDER.upper()}\n")
 
     if args.dashboard:
         run_dashboard_mode()
