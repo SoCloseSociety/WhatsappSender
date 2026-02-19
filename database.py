@@ -1,141 +1,113 @@
 """
-SoClose Community Bot — Database Layer
-SQLite async database for users, broadcasts, projects cache, and message logs.
+WhatsApp Bulk Sender — Database Layer
+SQLite async database for contacts, campaigns, message logs, and templates.
 """
 
+from __future__ import annotations
+
+import logging
+
 import aiosqlite
-import json
 from datetime import datetime
 
 import config
 
+logger = logging.getLogger(__name__)
+
 _DB = config.DB_PATH
 
-# ── Schema ────────────────────────────────────────────────────
+# -- Schema ---------------------------------------------------
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS users (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    phone           TEXT UNIQUE NOT NULL,
-    name            TEXT DEFAULT '',
-    language        TEXT DEFAULT 'fr',
-    subscribed      INTEGER DEFAULT 1,
-    first_seen      TEXT DEFAULT (datetime('now')),
-    last_seen       TEXT DEFAULT (datetime('now'))
+CREATE TABLE IF NOT EXISTS contacts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    first_name  TEXT DEFAULT 'Contact',
+    last_name   TEXT DEFAULT '',
+    phone       TEXT UNIQUE NOT NULL,
+    email       TEXT DEFAULT '',
+    created_at  TEXT DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS projects (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    name            TEXT UNIQUE NOT NULL,
-    description     TEXT DEFAULT '',
-    url             TEXT DEFAULT '',
-    language        TEXT DEFAULT '',
-    stars           INTEGER DEFAULT 0,
-    category        TEXT DEFAULT 'bot',
-    updated_at      TEXT DEFAULT ''
+CREATE TABLE IF NOT EXISTS campaigns (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    message     TEXT DEFAULT '',
+    status      TEXT DEFAULT 'draft',
+    created_at  TEXT DEFAULT (datetime('now')),
+    sent_at     TEXT
 );
 
-CREATE TABLE IF NOT EXISTS broadcasts (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    title           TEXT NOT NULL,
-    message         TEXT NOT NULL,
-    status          TEXT DEFAULT 'draft',
-    target_filter   TEXT DEFAULT '{}',
-    created_at      TEXT DEFAULT (datetime('now')),
-    sent_at         TEXT
+CREATE TABLE IF NOT EXISTS campaign_contacts (
+    campaign_id INTEGER NOT NULL,
+    contact_id  INTEGER NOT NULL,
+    PRIMARY KEY (campaign_id, contact_id),
+    FOREIGN KEY (campaign_id) REFERENCES campaigns(id),
+    FOREIGN KEY (contact_id) REFERENCES contacts(id)
 );
 
 CREATE TABLE IF NOT EXISTS message_log (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    broadcast_id    INTEGER,
-    user_id         INTEGER,
+    contact_id      INTEGER,
+    campaign_id     INTEGER,
     phone           TEXT NOT NULL,
-    direction       TEXT DEFAULT 'outbound',
     content         TEXT DEFAULT '',
     status          TEXT DEFAULT 'queued',
-    provider_sid    TEXT DEFAULT '',
-    created_at      TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (broadcast_id) REFERENCES broadcasts(id),
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    wa_message_id   TEXT DEFAULT '',
+    error_message   TEXT DEFAULT '',
+    sent_at         TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL,
+    FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
 );
 
 CREATE TABLE IF NOT EXISTS templates (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    name            TEXT UNIQUE NOT NULL,
-    category        TEXT DEFAULT 'general',
-    body            TEXT NOT NULL,
-    created_at      TEXT DEFAULT (datetime('now'))
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT UNIQUE NOT NULL,
+    category    TEXT DEFAULT 'general',
+    body        TEXT NOT NULL,
+    created_at  TEXT DEFAULT (datetime('now'))
 );
 """
 
 _DEFAULT_TEMPLATES = [
     (
-        "welcome",
-        "onboarding",
-        (
-            "Bienvenue dans la communaute SoClose Society ! 🚀\n\n"
-            "Tu as maintenant acces a tous nos outils open-source :\n"
-            "bots, scrapers, automatisations...\n\n"
-            "Tape *menu* pour decouvrir nos projets.\n"
-            "Tape *aide* pour obtenir de l'aide."
-        ),
+        "simple_hello",
+        "general",
+        "Bonjour {first_name} ! Ceci est un message de la part de SoClose Society.",
     ),
     (
-        "project_list",
-        "info",
-        (
-            "📦 *Nos Projets Open-Source*\n\n"
-            "{project_list}\n\n"
-            "Tape le *numero* du projet pour plus de details.\n"
-            "Tape *menu* pour revenir au menu principal."
-        ),
-    ),
-    (
-        "project_detail",
-        "info",
-        (
-            "🔧 *{project_name}*\n\n"
-            "{project_description}\n\n"
-            "⭐ Stars: {stars}\n"
-            "💻 Langage: {language}\n"
-            "🔗 GitHub: {project_url}\n\n"
-            "Tape *menu* pour revenir au menu."
-        ),
-    ),
-    (
-        "broadcast_announcement",
+        "promo",
         "broadcast",
         (
-            "📢 *Annonce SoClose Society*\n\n"
-            "{announcement_text}\n\n"
-            "🔗 {link}\n\n"
-            "Tape *stop* pour te desabonner."
+            "Salut {first_name} !\n\n"
+            "Decouvrez nos derniers outils et projets open-source.\n"
+            "Plus d'infos sur https://soclose.co\n\n"
+            "A bientot !"
         ),
     ),
     (
-        "help",
-        "info",
-        (
-            "ℹ️ *Aide — SoClose Community Bot*\n\n"
-            "*menu* — Menu principal\n"
-            "*projets* — Liste des projets\n"
-            "*aide* — Ce message\n"
-            "*stop* — Se desabonner\n"
-            "*start* — Se reabonner\n\n"
-            "Tu peux aussi taper le nom d'un projet pour le rechercher.\n\n"
-            "🌐 GitHub: github.com/SoCloseSociety\n"
-            "🌐 Site: soclose.co"
-        ),
+        "reminder",
+        "broadcast",
+        "Bonjour {first_name}, un petit rappel de SoClose Society. N'hesitez pas a nous contacter !",
     ),
 ]
 
 
-# ── Init ──────────────────────────────────────────────────────
+# -- Connection helper ----------------------------------------
+
+async def _connect() -> aiosqlite.Connection:
+    """Open a connection with WAL mode and foreign keys enabled."""
+    db = await aiosqlite.connect(_DB)
+    await db.execute("PRAGMA journal_mode=WAL")
+    await db.execute("PRAGMA foreign_keys=ON")
+    return db
+
+
+# -- Init -----------------------------------------------------
 
 async def init():
     """Create tables and seed default templates."""
-    async with aiosqlite.connect(_DB) as db:
+    db = await _connect()
+    try:
         await db.executescript(_SCHEMA)
         for name, category, body in _DEFAULT_TEMPLATES:
             await db.execute(
@@ -143,243 +115,331 @@ async def init():
                 (name, category, body),
             )
         await db.commit()
+    finally:
+        await db.close()
 
 
-# ── Users ─────────────────────────────────────────────────────
+# -- Contacts -------------------------------------------------
 
-async def upsert_user(phone: str, name: str = "") -> int:
-    """Create or update a user. Returns user ID."""
-    async with aiosqlite.connect(_DB) as db:
+async def upsert_contact(first_name: str, last_name: str, phone: str, email: str = "") -> int:
+    """Create or update a contact. Returns contact ID."""
+    db = await _connect()
+    try:
         cursor = await db.execute(
-            """INSERT INTO users (phone, name)
-               VALUES (?, ?)
+            """INSERT INTO contacts (first_name, last_name, phone, email)
+               VALUES (?, ?, ?, ?)
                ON CONFLICT(phone) DO UPDATE SET
-                 name = CASE WHEN excluded.name != '' THEN excluded.name ELSE users.name END,
-                 last_seen = datetime('now')""",
-            (phone, name or ""),
+                 first_name = CASE WHEN excluded.first_name != 'Contact' THEN excluded.first_name ELSE contacts.first_name END,
+                 last_name = CASE WHEN excluded.last_name != '' THEN excluded.last_name ELSE contacts.last_name END,
+                 email = CASE WHEN excluded.email != '' THEN excluded.email ELSE contacts.email END""",
+            (first_name or "Contact", last_name or "", phone, email or ""),
         )
         await db.commit()
-        if cursor.lastrowid:
-            return cursor.lastrowid
-        row_cursor = await db.execute("SELECT id FROM users WHERE phone = ?", (phone,))
+        # Always fetch the actual ID to avoid returning 0
+        row_cursor = await db.execute("SELECT id FROM contacts WHERE phone = ?", (phone,))
         row = await row_cursor.fetchone()
         return row[0] if row else 0
+    finally:
+        await db.close()
 
 
-async def get_user(phone: str) -> dict | None:
-    async with aiosqlite.connect(_DB) as db:
+async def get_contact_by_phone(phone: str) -> dict | None:
+    db = await _connect()
+    try:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT * FROM users WHERE phone = ?", (phone,))
+        cursor = await db.execute("SELECT * FROM contacts WHERE phone = ?", (phone,))
         row = await cursor.fetchone()
         return dict(row) if row else None
+    finally:
+        await db.close()
 
 
-async def set_user_subscribed(phone: str, subscribed: bool) -> None:
-    async with aiosqlite.connect(_DB) as db:
-        await db.execute(
-            "UPDATE users SET subscribed = ? WHERE phone = ?",
-            (1 if subscribed else 0, phone),
-        )
-        await db.commit()
-
-
-async def get_subscribed_users() -> list[dict]:
-    async with aiosqlite.connect(_DB) as db:
+async def get_all_contacts() -> list[dict]:
+    db = await _connect()
+    try:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT * FROM users WHERE subscribed = 1")
+        cursor = await db.execute("SELECT * FROM contacts ORDER BY created_at DESC")
         return [dict(row) for row in await cursor.fetchall()]
+    finally:
+        await db.close()
 
 
-async def get_all_users() -> list[dict]:
-    async with aiosqlite.connect(_DB) as db:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT * FROM users ORDER BY last_seen DESC")
-        return [dict(row) for row in await cursor.fetchall()]
-
-
-async def get_user_count() -> int:
-    async with aiosqlite.connect(_DB) as db:
-        cursor = await db.execute("SELECT COUNT(*) FROM users")
+async def get_contact_count() -> int:
+    db = await _connect()
+    try:
+        cursor = await db.execute("SELECT COUNT(*) FROM contacts")
         row = await cursor.fetchone()
         return row[0]
+    finally:
+        await db.close()
 
 
-# ── Projects ──────────────────────────────────────────────────
-
-async def upsert_project(
-    name: str,
-    description: str = "",
-    url: str = "",
-    language: str = "",
-    stars: int = 0,
-    category: str = "bot",
-    updated_at: str = "",
-) -> None:
-    async with aiosqlite.connect(_DB) as db:
-        await db.execute(
-            """INSERT INTO projects (name, description, url, language, stars, category, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(name) DO UPDATE SET
-                 description = excluded.description,
-                 url = excluded.url,
-                 language = excluded.language,
-                 stars = excluded.stars,
-                 category = excluded.category,
-                 updated_at = excluded.updated_at""",
-            (name, description, url, language, stars, category, updated_at),
-        )
+async def delete_all_contacts() -> int:
+    """Delete all contacts. Nullifies references in message_log."""
+    db = await _connect()
+    try:
+        cursor = await db.execute("SELECT COUNT(*) FROM contacts")
+        row = await cursor.fetchone()
+        count = row[0]
+        await db.execute("UPDATE message_log SET contact_id = NULL")
+        await db.execute("DELETE FROM campaign_contacts")
+        await db.execute("DELETE FROM contacts")
         await db.commit()
+        return count
+    finally:
+        await db.close()
 
 
-async def get_all_projects() -> list[dict]:
-    async with aiosqlite.connect(_DB) as db:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT * FROM projects ORDER BY stars DESC, name ASC")
-        return [dict(row) for row in await cursor.fetchall()]
+# -- Campaigns ------------------------------------------------
 
-
-async def search_projects(query: str) -> list[dict]:
-    escaped = query.replace("%", "\\%").replace("_", "\\_")
-    async with aiosqlite.connect(_DB) as db:
-        db.row_factory = aiosqlite.Row
+async def create_campaign(name: str, message: str = "") -> int:
+    db = await _connect()
+    try:
         cursor = await db.execute(
-            "SELECT * FROM projects WHERE name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\' ORDER BY stars DESC",
-            (f"%{escaped}%", f"%{escaped}%"),
-        )
-        return [dict(row) for row in await cursor.fetchall()]
-
-
-# ── Broadcasts ────────────────────────────────────────────────
-
-async def create_broadcast(title: str, message: str, target_filter: dict | None = None) -> int:
-    async with aiosqlite.connect(_DB) as db:
-        cursor = await db.execute(
-            "INSERT INTO broadcasts (title, message, target_filter) VALUES (?, ?, ?)",
-            (title, message, json.dumps(target_filter or {})),
+            "INSERT INTO campaigns (name, message) VALUES (?, ?)",
+            (name, message),
         )
         await db.commit()
         return cursor.lastrowid or 0
+    finally:
+        await db.close()
 
 
-async def get_broadcast(broadcast_id: int) -> dict | None:
-    async with aiosqlite.connect(_DB) as db:
+async def get_campaign(campaign_id: int) -> dict | None:
+    db = await _connect()
+    try:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT * FROM broadcasts WHERE id = ?", (broadcast_id,))
+        cursor = await db.execute("SELECT * FROM campaigns WHERE id = ?", (campaign_id,))
         row = await cursor.fetchone()
         return dict(row) if row else None
+    finally:
+        await db.close()
 
 
-async def update_broadcast_status(broadcast_id: int, status: str) -> None:
-    async with aiosqlite.connect(_DB) as db:
+async def update_campaign_status(campaign_id: int, status: str) -> None:
+    db = await _connect()
+    try:
         if status == "sent":
             await db.execute(
-                "UPDATE broadcasts SET status = ?, sent_at = ? WHERE id = ?",
-                (status, datetime.now().isoformat(), broadcast_id),
+                "UPDATE campaigns SET status = ?, sent_at = ? WHERE id = ?",
+                (status, datetime.now().isoformat(), campaign_id),
             )
         else:
             await db.execute(
-                "UPDATE broadcasts SET status = ? WHERE id = ?",
-                (status, broadcast_id),
+                "UPDATE campaigns SET status = ? WHERE id = ?",
+                (status, campaign_id),
             )
         await db.commit()
+    finally:
+        await db.close()
 
 
-async def get_all_broadcasts() -> list[dict]:
-    async with aiosqlite.connect(_DB) as db:
+async def update_campaign_message(campaign_id: int, message: str) -> None:
+    """Save the actual message sent for audit trail."""
+    db = await _connect()
+    try:
+        await db.execute(
+            "UPDATE campaigns SET message = ? WHERE id = ?",
+            (message, campaign_id),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+
+async def get_all_campaigns() -> list[dict]:
+    db = await _connect()
+    try:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT * FROM broadcasts ORDER BY created_at DESC")
+        cursor = await db.execute(
+            """SELECT c.*, COUNT(cc.contact_id) as contact_count
+               FROM campaigns c
+               LEFT JOIN campaign_contacts cc ON c.id = cc.campaign_id
+               GROUP BY c.id
+               ORDER BY c.created_at DESC"""
+        )
         return [dict(row) for row in await cursor.fetchall()]
+    finally:
+        await db.close()
 
 
-# ── Message Log ───────────────────────────────────────────────
+async def add_contacts_to_campaign(campaign_id: int, contact_ids: list[int]) -> int:
+    """Link contacts to a campaign. Returns number actually added."""
+    added = 0
+    db = await _connect()
+    try:
+        for cid in contact_ids:
+            if cid <= 0:
+                continue
+            try:
+                cursor = await db.execute(
+                    "INSERT OR IGNORE INTO campaign_contacts (campaign_id, contact_id) VALUES (?, ?)",
+                    (campaign_id, cid),
+                )
+                if cursor.rowcount > 0:
+                    added += 1
+            except Exception as e:
+                logger.warning(f"Failed to link contact {cid} to campaign {campaign_id}: {e}")
+        await db.commit()
+    finally:
+        await db.close()
+    return added
+
+
+async def get_contacts_for_campaign(campaign_id: int) -> list[dict]:
+    db = await _connect()
+    try:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            """SELECT c.* FROM contacts c
+               INNER JOIN campaign_contacts cc ON c.id = cc.contact_id
+               WHERE cc.campaign_id = ?
+               ORDER BY c.first_name""",
+            (campaign_id,),
+        )
+        return [dict(row) for row in await cursor.fetchall()]
+    finally:
+        await db.close()
+
+
+async def get_contact_count_for_campaign(campaign_id: int) -> int:
+    db = await _connect()
+    try:
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM campaign_contacts WHERE campaign_id = ?",
+            (campaign_id,),
+        )
+        row = await cursor.fetchone()
+        return row[0]
+    finally:
+        await db.close()
+
+
+# -- Message Log ----------------------------------------------
 
 async def log_message(
     phone: str,
     content: str = "",
-    direction: str = "outbound",
     status: str = "queued",
-    broadcast_id: int | None = None,
-    user_id: int | None = None,
-    provider_sid: str = "",
+    campaign_id: int | None = None,
+    contact_id: int | None = None,
+    wa_message_id: str = "",
+    error_message: str = "",
 ) -> int:
-    async with aiosqlite.connect(_DB) as db:
+    db = await _connect()
+    try:
         cursor = await db.execute(
             """INSERT INTO message_log
-               (broadcast_id, user_id, phone, direction, content, status, provider_sid)
+               (contact_id, campaign_id, phone, content, status, wa_message_id, error_message)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (broadcast_id, user_id, phone, direction, content, status, provider_sid),
+            (contact_id, campaign_id, phone, content, status, wa_message_id, error_message),
         )
         await db.commit()
         return cursor.lastrowid or 0
+    finally:
+        await db.close()
 
 
-async def update_message_status(provider_sid: str, status: str) -> None:
-    async with aiosqlite.connect(_DB) as db:
+async def update_message_status(wa_message_id: str, status: str) -> None:
+    db = await _connect()
+    try:
         await db.execute(
-            "UPDATE message_log SET status = ?, updated_at = datetime('now') WHERE provider_sid = ?",
-            (status, provider_sid),
+            "UPDATE message_log SET status = ? WHERE wa_message_id = ?",
+            (status, wa_message_id),
         )
         await db.commit()
+    finally:
+        await db.close()
 
 
-async def get_message_stats() -> dict:
-    async with aiosqlite.connect(_DB) as db:
+async def get_send_stats() -> dict:
+    """Get overall sending statistics."""
+    db = await _connect()
+    try:
         stats = {}
         for s in ("queued", "sent", "delivered", "read", "failed"):
             cursor = await db.execute(
-                "SELECT COUNT(*) FROM message_log WHERE status = ? AND direction = 'outbound'",
-                (s,),
+                "SELECT COUNT(*) FROM message_log WHERE status = ?", (s,)
             )
             row = await cursor.fetchone()
             stats[s] = row[0]
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM message_log WHERE direction = 'inbound'"
-        )
+        cursor = await db.execute("SELECT COUNT(*) FROM message_log")
         row = await cursor.fetchone()
-        stats["inbound"] = row[0]
+        stats["total"] = row[0]
         return stats
+    finally:
+        await db.close()
 
 
-async def get_broadcast_stats(broadcast_id: int) -> dict:
-    async with aiosqlite.connect(_DB) as db:
+async def get_campaign_stats(campaign_id: int) -> dict:
+    db = await _connect()
+    try:
         stats = {}
         for s in ("queued", "sent", "delivered", "read", "failed"):
             cursor = await db.execute(
-                "SELECT COUNT(*) FROM message_log WHERE broadcast_id = ? AND status = ?",
-                (broadcast_id, s),
+                "SELECT COUNT(*) FROM message_log WHERE campaign_id = ? AND status = ?",
+                (campaign_id, s),
             )
             row = await cursor.fetchone()
             stats[s] = row[0]
         return stats
+    finally:
+        await db.close()
 
 
-# ── Templates ─────────────────────────────────────────────────
+async def get_recent_messages(limit: int = 20) -> list[dict]:
+    db = await _connect()
+    try:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM message_log ORDER BY sent_at DESC LIMIT ?",
+            (limit,),
+        )
+        return [dict(row) for row in await cursor.fetchall()]
+    finally:
+        await db.close()
+
+
+# -- Templates ------------------------------------------------
+
+async def get_all_templates() -> list[dict]:
+    db = await _connect()
+    try:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM templates ORDER BY category, name")
+        return [dict(row) for row in await cursor.fetchall()]
+    finally:
+        await db.close()
+
 
 async def get_template(name: str) -> dict | None:
-    async with aiosqlite.connect(_DB) as db:
+    db = await _connect()
+    try:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute("SELECT * FROM templates WHERE name = ?", (name,))
         row = await cursor.fetchone()
         return dict(row) if row else None
-
-
-async def get_all_templates() -> list[dict]:
-    async with aiosqlite.connect(_DB) as db:
-        db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT * FROM templates ORDER BY category, name")
-        return [dict(row) for row in await cursor.fetchall()]
+    finally:
+        await db.close()
 
 
 async def create_template(name: str, category: str, body: str) -> None:
-    async with aiosqlite.connect(_DB) as db:
+    db = await _connect()
+    try:
         await db.execute(
-            "INSERT OR REPLACE INTO templates (name, category, body) VALUES (?, ?, ?)",
+            """INSERT INTO templates (name, category, body) VALUES (?, ?, ?)
+               ON CONFLICT(name) DO UPDATE SET category = excluded.category, body = excluded.body""",
             (name, category, body),
         )
         await db.commit()
+    finally:
+        await db.close()
 
 
 async def delete_template(name: str) -> None:
-    async with aiosqlite.connect(_DB) as db:
+    db = await _connect()
+    try:
         await db.execute("DELETE FROM templates WHERE name = ?", (name,))
         await db.commit()
+    finally:
+        await db.close()

@@ -1,10 +1,10 @@
 """
-SoClose Community Bot — Streamlit Web Dashboard
-Web interface for community management, broadcasting, and analytics.
+WhatsApp Bulk Sender — Streamlit Web Dashboard
+Web interface for importing contacts, sending campaigns, and viewing stats.
 """
 
 import asyncio
-import os
+import hmac
 import threading
 
 import streamlit as st
@@ -12,12 +12,11 @@ import pandas as pd
 
 import config
 import database
-import github_api
-from whatsapp import WhatsAppClient
+import csv_handler
+from whatsapp import WhatsAppClient, _render_message
 
 
-# ── Async Bridge ──────────────────────────────────────────────
-# Single background event loop reused across all calls
+# -- Async Bridge ----------------------------------------------
 
 _loop = asyncio.new_event_loop()
 _thread = threading.Thread(target=_loop.run_forever, daemon=True)
@@ -27,7 +26,11 @@ _thread.start()
 def run_async(coro):
     """Run an async coroutine from sync Streamlit context."""
     future = asyncio.run_coroutine_threadsafe(coro, _loop)
-    return future.result(timeout=30)
+    try:
+        return future.result(timeout=30)
+    except TimeoutError:
+        future.cancel()
+        raise RuntimeError("Database operation timed out")
 
 
 def init_db():
@@ -36,27 +39,27 @@ def init_db():
         st.session_state.db_init = True
 
 
-# ── Page Config ───────────────────────────────────────────────
+# -- Page Config -----------------------------------------------
 
 st.set_page_config(
     page_title=config.BOT_NAME,
-    page_icon="🤖",
+    page_icon="📱",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ── Authentication Gate ───────────────────────────────────────
+# -- Authentication Gate ---------------------------------------
 
 if config.DASHBOARD_PASSWORD:
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
 
     if not st.session_state.authenticated:
-        st.title("🔒 SoClose Community Bot")
+        st.title("🔒 WhatsApp Bulk Sender")
         st.markdown("Entrez le mot de passe pour acceder au dashboard.")
         password = st.text_input("Mot de passe", type="password")
         if st.button("Connexion"):
-            if password == config.DASHBOARD_PASSWORD:
+            if hmac.compare_digest(password, config.DASHBOARD_PASSWORD):
                 st.session_state.authenticated = True
                 st.rerun()
             else:
@@ -66,22 +69,21 @@ if config.DASHBOARD_PASSWORD:
 init_db()
 
 
-# ── Sidebar ───────────────────────────────────────────────────
+# -- Sidebar ---------------------------------------------------
 
 with st.sidebar:
-    st.image("https://github.com/SoCloseSociety.png", width=80)
-    st.title("SoClose Community")
+    st.title("📱 WhatsApp Sender")
     st.caption(f"v{config.BOT_VERSION} | {config.WA_PROVIDER.upper()}")
 
     page = st.radio(
         "Navigation",
         [
             "🏠 Dashboard",
-            "📦 Projets",
-            "👥 Utilisateurs",
-            "📢 Broadcast",
-            "📋 Templates",
+            "📥 Import CSV",
+            "📢 Envoyer",
+            "👥 Contacts",
             "📊 Statistiques",
+            "📋 Templates",
             "💬 Test Message",
             "⚙️ Configuration",
         ],
@@ -91,182 +93,268 @@ with st.sidebar:
     st.markdown(f"[GitHub]({config.COMMUNITY_URL}) | [Site]({config.WEBSITE_URL})")
 
 
-# ── Dashboard Page ────────────────────────────────────────────
+# -- Dashboard Page --------------------------------------------
 
 if page == "🏠 Dashboard":
     st.title("🏠 Dashboard")
-    st.markdown(f"**{config.BOT_NAME}** — Panel de gestion communautaire")
 
-    # KPIs
-    user_count = run_async(database.get_user_count())
-    projects = run_async(database.get_all_projects())
-    msg_stats = run_async(database.get_message_stats())
-    broadcasts = run_async(database.get_all_broadcasts())
+    contact_count = run_async(database.get_contact_count())
+    campaigns = run_async(database.get_all_campaigns())
+    stats = run_async(database.get_send_stats())
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Utilisateurs", user_count)
-    col2.metric("Projets", len(projects))
-    col3.metric("Messages envoyes", msg_stats.get("sent", 0) + msg_stats.get("delivered", 0))
-    col4.metric("Broadcasts", len(broadcasts))
+    col1.metric("Contacts", contact_count)
+    col2.metric("Campagnes", len(campaigns))
+    col3.metric("Messages envoyes", stats.get("sent", 0) + stats.get("delivered", 0))
+    col4.metric("Echoues", stats.get("failed", 0))
 
-    # Delivery rate
-    total_out = sum(msg_stats.get(s, 0) for s in ("sent", "delivered", "read", "failed"))
-    delivered = msg_stats.get("delivered", 0) + msg_stats.get("read", 0)
+    total_out = sum(stats.get(s, 0) for s in ("sent", "delivered", "read", "failed"))
+    delivered = stats.get("delivered", 0) + stats.get("read", 0)
     rate = (delivered / total_out * 100) if total_out > 0 else 0
 
     col5, col6, col7, col8 = st.columns(4)
     col5.metric("Taux livraison", f"{rate:.1f}%")
-    col6.metric("Messages lus", msg_stats.get("read", 0))
-    col7.metric("Echoues", msg_stats.get("failed", 0))
-    col8.metric("Recus (inbound)", msg_stats.get("inbound", 0))
+    col6.metric("Livres", stats.get("delivered", 0))
+    col7.metric("Lus", stats.get("read", 0))
+    col8.metric("Total", stats.get("total", 0))
 
-    # Quick sync
+    # Recent campaigns
     st.divider()
-    if st.button("🔄 Synchroniser les projets GitHub"):
-        with st.spinner("Synchronisation..."):
-            repos = run_async(github_api.sync_projects())
-            st.success(f"{len(repos)} projets synchronises !")
-            st.rerun()
-
-
-# ── Projects Page ─────────────────────────────────────────────
-
-elif page == "📦 Projets":
-    st.title("📦 Projets Open-Source")
-
-    projects = run_async(database.get_all_projects())
-
-    if not projects:
-        st.warning("Aucun projet. Cliquez ci-dessous pour synchroniser.")
-        if st.button("🔄 Sync GitHub"):
-            with st.spinner("Synchronisation..."):
-                repos = run_async(github_api.sync_projects())
-                st.success(f"{len(repos)} projets importes !")
-                st.rerun()
+    st.subheader("Campagnes recentes")
+    if campaigns:
+        for c in campaigns[:5]:
+            status_emoji = {"draft": "📝", "sent": "✅", "sending": "📤"}.get(c["status"], "⏳")
+            st.markdown(f"{status_emoji} **{c['name']}** — {c.get('contact_count', 0)} contacts — {c['created_at'][:16]}")
     else:
-        # Filter
-        categories = sorted(set(p.get("category", "tool") for p in projects))
-        selected_cat = st.multiselect("Filtrer par categorie", categories, default=categories)
-
-        filtered = [p for p in projects if p.get("category", "tool") in selected_cat]
-
-        for p in filtered:
-            emoji = {"bot": "🤖", "scraper": "🔍", "automation": "⚡", "template": "📄"}.get(
-                p.get("category", ""), "🔧"
-            )
-            with st.expander(f"{emoji} {github_api.friendly_name(p['name'])} — ⭐ {p.get('stars', 0)} | {p.get('language', 'N/A')}"):
-                st.markdown(f"**Description:** {p.get('description', 'N/A')}")
-                st.markdown(f"**Categorie:** {p.get('category', 'N/A')}")
-                st.markdown(f"**Derniere MAJ:** {(p.get('updated_at', '') or '')[:10]}")
-                st.markdown(f"[Voir sur GitHub]({p.get('url', '')})")
-
-        st.divider()
-        if st.button("🔄 Rafraichir depuis GitHub"):
-            with st.spinner("Synchronisation..."):
-                repos = run_async(github_api.sync_projects())
-                st.success(f"{len(repos)} projets mis a jour !")
-                st.rerun()
+        st.caption("Aucune campagne.")
 
 
-# ── Users Page ────────────────────────────────────────────────
+# -- Import CSV Page -------------------------------------------
 
-elif page == "👥 Utilisateurs":
-    st.title("👥 Utilisateurs")
+elif page == "📥 Import CSV":
+    st.title("📥 Importer des contacts")
 
-    users = run_async(database.get_all_users())
+    uploaded = st.file_uploader("Choisir un fichier CSV", type=["csv"])
+    campaign_name = st.text_input("Nom de la campagne", placeholder="Ma campagne")
 
-    if not users:
-        st.info("Aucun utilisateur enregistre. Les utilisateurs apparaitront ici quand ils contacteront le bot.")
-    else:
-        subscribed = [u for u in users if u.get("subscribed")]
-        st.metric("Total", len(users))
-        col1, col2 = st.columns(2)
-        col1.metric("Abonnes", len(subscribed))
-        col2.metric("Desabonnes", len(users) - len(subscribed))
+    if uploaded and campaign_name:
+        if st.button("📥 Importer", type="primary"):
+            content = uploaded.read()
+            contacts, errors = csv_handler.parse_csv(content)
 
-        df = pd.DataFrame(users)
-        display_cols = [c for c in ["phone", "name", "subscribed", "language", "first_seen", "last_seen"] if c in df.columns]
-        st.dataframe(df[display_cols], use_container_width=True)
+            if errors:
+                with st.expander(f"⚠ {len(errors)} avertissements"):
+                    for err in errors[:20]:
+                        st.text(err)
+
+            if contacts:
+                with st.spinner(f"Import de {len(contacts)} contacts..."):
+                    contact_ids = []
+                    for c in contacts:
+                        cid = run_async(database.upsert_contact(
+                            first_name=c["first_name"],
+                            last_name=c["last_name"],
+                            phone=c["phone"],
+                            email=c.get("email", ""),
+                        ))
+                        contact_ids.append(cid)
+
+                    campaign_id = run_async(database.create_campaign(name=campaign_name, message=""))
+                    run_async(database.add_contacts_to_campaign(campaign_id, contact_ids))
+
+                st.success(f"{len(contacts)} contacts importes dans '{campaign_name}'")
+
+                # Preview
+                df = pd.DataFrame(contacts)
+                st.dataframe(df.head(20), use_container_width=True)
+            else:
+                st.error("Aucun contact valide trouve.")
+
+    st.divider()
+    st.subheader("Format CSV attendu")
+    st.code("phone,first_name,last_name,email\n+33612345678,Jean,Dupont,jean@email.com\n+33687654321,Marie,Martin,", language="csv")
 
 
-# ── Broadcast Page ────────────────────────────────────────────
+# -- Send Page -------------------------------------------------
 
-elif page == "📢 Broadcast":
-    st.title("📢 Envoyer un Broadcast")
+elif page == "📢 Envoyer":
+    st.title("📢 Envoyer des messages")
 
-    users = run_async(database.get_subscribed_users())
-    st.info(f"**{len(users)}** abonnes recevront le message.")
+    campaigns = run_async(database.get_all_campaigns())
+    if not campaigns:
+        st.warning("Aucune campagne. Importez d'abord des contacts.")
+        st.stop()
+
+    # Select campaign
+    campaign_options = {
+        f"{c['name']} ({c.get('contact_count', 0)} contacts) [{c['status']}]": c["id"]
+        for c in campaigns
+    }
+    selected = st.selectbox("Campagne", list(campaign_options.keys()))
+    campaign_id = campaign_options[selected]
+
+    contacts = run_async(database.get_contacts_for_campaign(campaign_id))
+    st.info(f"**{len(contacts)}** contacts dans cette campagne.")
 
     # Template selector
     templates = run_async(database.get_all_templates())
-    template_names = ["(Aucun)"] + [t["name"] for t in templates]
-    selected_tpl = st.selectbox("Utiliser un template", template_names)
+    template_names = ["(Ecrire un message)"] + [t["name"] for t in templates]
+    selected_tpl = st.selectbox("Template", template_names)
 
     default_msg = ""
-    if selected_tpl != "(Aucun)":
+    if selected_tpl != "(Ecrire un message)":
         tpl = next((t for t in templates if t["name"] == selected_tpl), None)
         if tpl:
             default_msg = tpl["body"]
 
-    message = st.text_area("Message", value=default_msg, height=200, help="Placeholders: {name}, {phone}")
+    message = st.text_area(
+        "Message",
+        value=default_msg,
+        height=200,
+        help="Placeholders: {first_name}, {last_name}, {phone}, {name}",
+    )
 
-    if message:
+    if message and contacts:
+        sample = contacts[0]
+        preview = _render_message(message, {
+            "first_name": sample.get("first_name", "Contact"),
+            "last_name": sample.get("last_name", ""),
+            "phone": sample.get("phone", ""),
+            "name": f"{sample.get('first_name', '')} {sample.get('last_name', '')}".strip(),
+        })
         st.markdown("**Apercu:**")
-        preview = message.replace("{name}", "Jean").replace("{phone}", "+33612345678")
         st.text(preview)
 
     col1, col2 = st.columns(2)
     dry_run = col1.checkbox("Mode test (dry run)", value=True)
 
-    if col2.button("📤 Envoyer", type="primary", disabled=not message or not users):
+    if col2.button("📤 Envoyer", type="primary", disabled=not message or not contacts):
         if dry_run:
-            st.warning(f"**DRY RUN** — Aucun message envoye. {len(users)} destinataires.")
-            st.text(message[:300])
+            st.warning(f"**DRY RUN** — Aucun message envoye. {len(contacts)} destinataires.")
         else:
-            broadcast_id = run_async(database.create_broadcast(title="Dashboard Broadcast", message=message))
+            run_async(database.update_campaign_message(campaign_id, message))
             wa = WhatsAppClient()
+            recipients = [
+                {
+                    "phone": c["phone"],
+                    "first_name": c.get("first_name", "Contact"),
+                    "last_name": c.get("last_name", ""),
+                    "id": c.get("id"),
+                }
+                for c in contacts
+            ]
 
-            recipients = [{"phone": u["phone"], "name": u.get("name") or ""} for u in users]
-            with st.spinner(f"Envoi en cours a {len(recipients)} destinataires..."):
-                results = run_async(wa.send_bulk(
-                    recipients=recipients,
-                    message_template=message,
-                    broadcast_id=broadcast_id,
+            progress = st.progress(0)
+            status_text = st.empty()
+
+            sent = 0
+            failed = 0
+            for i, r in enumerate(recipients):
+                body = _render_message(message, {
+                    "first_name": r.get("first_name", "Contact"),
+                    "last_name": r.get("last_name", ""),
+                    "phone": r.get("phone", ""),
+                    "name": f"{r.get('first_name', '')} {r.get('last_name', '')}".strip(),
+                })
+                result = run_async(wa.send_message(r["phone"], body))
+                run_async(database.log_message(
+                    phone=r["phone"],
+                    content=body[:500],
+                    status=result["status"],
+                    campaign_id=campaign_id,
+                    contact_id=r.get("id"),
+                    wa_message_id=result.get("sid", ""),
+                    error_message=result.get("error", ""),
                 ))
+                if result["status"] == "sent":
+                    sent += 1
+                else:
+                    failed += 1
+                progress.progress((i + 1) / len(recipients))
+                status_text.text(f"Envoi: {i + 1}/{len(recipients)} — Envoyes: {sent} | Echoues: {failed}")
 
-            run_async(database.update_broadcast_status(broadcast_id, "sent"))
-            st.success(f"Envoyes: {results['sent']} | Echoues: {results['failed']}")
+            run_async(database.update_campaign_status(campaign_id, "sent"))
+            st.success(f"Termine ! Envoyes: {sent} | Echoues: {failed}")
 
-    # History
-    st.divider()
-    st.subheader("Historique")
-    broadcasts = run_async(database.get_all_broadcasts())
-    if broadcasts:
-        for b in broadcasts[:10]:
-            status_color = "green" if b["status"] == "sent" else "orange"
-            st.markdown(f":{status_color}[{b['status']}] **{b['title']}** — {b['created_at'][:16]}")
+
+# -- Contacts Page ---------------------------------------------
+
+elif page == "👥 Contacts":
+    st.title("👥 Contacts")
+
+    contacts = run_async(database.get_all_contacts())
+
+    if not contacts:
+        st.info("Aucun contact. Importez un CSV pour commencer.")
     else:
-        st.caption("Aucun broadcast envoye.")
+        st.metric("Total contacts", len(contacts))
+        df = pd.DataFrame(contacts)
+        display_cols = [c for c in ["phone", "first_name", "last_name", "email", "created_at"] if c in df.columns]
+        st.dataframe(df[display_cols], use_container_width=True)
 
 
-# ── Templates Page ────────────────────────────────────────────
+# -- Statistics Page -------------------------------------------
+
+elif page == "📊 Statistiques":
+    st.title("📊 Statistiques")
+
+    stats = run_async(database.get_send_stats())
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Messages par statut")
+        data = {
+            "Envoyes": stats.get("sent", 0),
+            "Livres": stats.get("delivered", 0),
+            "Lus": stats.get("read", 0),
+            "Echoues": stats.get("failed", 0),
+            "En attente": stats.get("queued", 0),
+        }
+        df = pd.DataFrame({"Status": list(data.keys()), "Count": list(data.values())})
+        st.bar_chart(df.set_index("Status"))
+
+    with col2:
+        st.subheader("Campagnes")
+        campaigns = run_async(database.get_all_campaigns())
+        if campaigns:
+            for c in campaigns[:5]:
+                camp_stats = run_async(database.get_campaign_stats(c["id"]))
+                total = sum(camp_stats.values())
+                delivered = camp_stats.get("delivered", 0) + camp_stats.get("read", 0)
+                rate = (delivered / total * 100) if total > 0 else 0
+                st.markdown(f"**{c['name']}** — {c['created_at'][:10]} — Taux: {rate:.0f}%")
+        else:
+            st.caption("Aucune campagne.")
+
+    # Recent messages
+    st.divider()
+    st.subheader("Messages recents")
+    messages = run_async(database.get_recent_messages(20))
+    if messages:
+        df_msg = pd.DataFrame(messages)
+        display_cols = [c for c in ["phone", "status", "content", "sent_at"] if c in df_msg.columns]
+        st.dataframe(df_msg[display_cols], use_container_width=True)
+    else:
+        st.caption("Aucun message.")
+
+
+# -- Templates Page --------------------------------------------
 
 elif page == "📋 Templates":
     st.title("📋 Templates de messages")
 
     templates = run_async(database.get_all_templates())
 
-    # Create new
     with st.expander("➕ Creer un template"):
         name = st.text_input("Nom du template")
-        category = st.selectbox("Categorie", ["general", "onboarding", "broadcast", "info"])
-        body = st.text_area("Contenu", height=150)
+        category = st.selectbox("Categorie", ["general", "broadcast", "info"])
+        body = st.text_area("Contenu", height=150, help="Placeholders: {first_name}, {last_name}, {phone}")
         if st.button("Creer") and name and body:
             run_async(database.create_template(name, category, body))
             st.success(f"Template '{name}' cree !")
             st.rerun()
 
-    # List existing
     for t in templates:
         with st.expander(f"📄 {t['name']} [{t['category']}]"):
             st.text(t["body"])
@@ -276,60 +364,13 @@ elif page == "📋 Templates":
                 st.rerun()
 
 
-# ── Statistics Page ───────────────────────────────────────────
-
-elif page == "📊 Statistiques":
-    st.title("📊 Statistiques & Rapports")
-
-    msg_stats = run_async(database.get_message_stats())
-
-    # Charts
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("Messages sortants")
-        outbound_data = {
-            "Envoyes": msg_stats.get("sent", 0),
-            "Livres": msg_stats.get("delivered", 0),
-            "Lus": msg_stats.get("read", 0),
-            "Echoues": msg_stats.get("failed", 0),
-            "En attente": msg_stats.get("queued", 0),
-        }
-        df_out = pd.DataFrame({"Status": list(outbound_data.keys()), "Count": list(outbound_data.values())})
-        st.bar_chart(df_out.set_index("Status"))
-
-    with col2:
-        st.subheader("Vue d'ensemble")
-        total_out = sum(outbound_data.values())
-        total_in = msg_stats.get("inbound", 0)
-        overview = pd.DataFrame({
-            "Direction": ["Sortants", "Entrants"],
-            "Count": [total_out, total_in],
-        })
-        st.bar_chart(overview.set_index("Direction"))
-
-    # Broadcast stats
-    st.divider()
-    st.subheader("Broadcasts")
-    broadcasts = run_async(database.get_all_broadcasts())
-    if broadcasts:
-        for b in broadcasts[:5]:
-            stats = run_async(database.get_broadcast_stats(b["id"]))
-            total = sum(stats.values())
-            delivered = stats.get("delivered", 0) + stats.get("read", 0)
-            rate = (delivered / total * 100) if total > 0 else 0
-            st.markdown(f"**{b['title']}** — {b['created_at'][:10]} — Taux: {rate:.0f}%")
-    else:
-        st.caption("Aucun broadcast.")
-
-
-# ── Test Message Page ─────────────────────────────────────────
+# -- Test Message Page -----------------------------------------
 
 elif page == "💬 Test Message":
     st.title("💬 Tester l'envoi WhatsApp")
 
     phone = st.text_input("Numero (format international)", placeholder="+33612345678")
-    message = st.text_area("Message", placeholder="Bonjour depuis SoClose Community Bot !")
+    message = st.text_area("Message", placeholder="Bonjour ! Test depuis WhatsApp Bulk Sender.")
 
     if st.button("Envoyer", type="primary", disabled=not phone or not message):
         wa = WhatsAppClient()
@@ -341,7 +382,7 @@ elif page == "💬 Test Message":
             st.error(f"Echec: {result.get('error', 'Unknown')}")
 
 
-# ── Configuration Page ────────────────────────────────────────
+# -- Configuration Page ----------------------------------------
 
 elif page == "⚙️ Configuration":
     st.title("⚙️ Configuration")
@@ -353,32 +394,11 @@ elif page == "⚙️ Configuration":
     else:
         st.success("Configuration OK !")
 
-    st.subheader("Parametres actuels")
     st.json({
         "Bot": config.BOT_NAME,
         "Version": config.BOT_VERSION,
         "Provider": config.WA_PROVIDER,
-        "GitHub Org": config.GITHUB_ORG,
         "Webhook Port": config.WEBHOOK_PORT,
         "Rate Limit": f"{config.WA_MESSAGES_PER_SECOND} msg/s",
         "Database": config.DB_PATH,
-        "Telegram Admins": len(config.TELEGRAM_ADMIN_IDS),
     })
-
-    st.divider()
-    st.subheader("Test de connexion")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🔗 Test GitHub API"):
-            with st.spinner("Test..."):
-                repos = run_async(github_api.sync_projects())
-            if repos:
-                st.success(f"GitHub OK — {len(repos)} repos trouves")
-            else:
-                st.error("Echec connexion GitHub")
-
-    with col2:
-        if st.button("📡 Test WhatsApp"):
-            wa = WhatsAppClient()
-            st.info(f"Provider: {wa.provider} — Configure et pret")

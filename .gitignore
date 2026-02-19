@@ -20,6 +20,9 @@ env/
 *.db
 *.sqlite3
 
+# CSV files (may contain personal data)
+*.csv
+
 # IDE
 .vscode/
 .idea/
@@ -34,7 +37,7 @@ Thumbs.db
 # Logs
 *.log
 
-# Old project files (archived)
+# Old project files
 numbers.csv
 already_send_message.csv
 message.txt

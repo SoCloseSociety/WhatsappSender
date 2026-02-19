@@ -1,4 +1,8 @@
-# Guide de Deploiement — SoClose Community Bot
+# Guide de Deploiement — WhatsApp Bulk Sender
+
+<p align="center">
+  <em>By <a href="https://github.com/SoCloseSociety">SoClose Society</a> — <a href="https://soclose.co">soclose.co</a></em>
+</p>
 
 Ce guide couvre le deploiement en production sur un VPS ou avec Docker.
 
@@ -23,8 +27,8 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install python3.11 python3.11-venv python3-pip git nginx certbot python3-certbot-nginx -y
 
 # Creer un utilisateur dedie
-sudo useradd -m -s /bin/bash soclose
-sudo su - soclose
+sudo useradd -m -s /bin/bash wasender
+sudo su - wasender
 
 # Cloner le projet
 git clone https://github.com/SoCloseSociety/WhatsappSender.git
@@ -43,22 +47,22 @@ nano .env  # Remplir les identifiants
 ### 1.2 Certificat SSL (Let's Encrypt)
 
 ```bash
-sudo certbot --nginx -d bot.ton-domaine.com
+sudo certbot --nginx -d bot.votre-domaine.com
 ```
 
 ### 1.3 Configuration Nginx
 
 ```bash
-sudo nano /etc/nginx/sites-available/soclose-bot
+sudo nano /etc/nginx/sites-available/wa-sender
 ```
 
 ```nginx
 server {
     listen 443 ssl;
-    server_name bot.ton-domaine.com;
+    server_name bot.votre-domaine.com;
 
-    ssl_certificate /etc/letsencrypt/live/bot.ton-domaine.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/bot.ton-domaine.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/bot.votre-domaine.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/bot.votre-domaine.com/privkey.pem;
 
     # Webhook API (FastAPI)
     location / {
@@ -81,13 +85,13 @@ server {
 
 server {
     listen 80;
-    server_name bot.ton-domaine.com;
+    server_name bot.votre-domaine.com;
     return 301 https://$server_name$request_uri;
 }
 ```
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/soclose-bot /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/wa-sender /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -95,20 +99,20 @@ sudo systemctl reload nginx
 ### 1.4 Service systemd
 
 ```bash
-sudo nano /etc/systemd/system/soclose-bot.service
+sudo nano /etc/systemd/system/wa-sender.service
 ```
 
 ```ini
 [Unit]
-Description=SoClose Community Bot
+Description=WhatsApp Bulk Sender
 After=network.target
 
 [Service]
 Type=simple
-User=soclose
-WorkingDirectory=/home/soclose/WhatsappSender
-Environment=PATH=/home/soclose/WhatsappSender/venv/bin:/usr/bin
-ExecStart=/home/soclose/WhatsappSender/venv/bin/python main.py --telegram
+User=wasender
+WorkingDirectory=/home/wasender/WhatsappSender
+Environment=PATH=/home/wasender/WhatsappSender/venv/bin:/usr/bin
+ExecStart=/home/wasender/WhatsappSender/venv/bin/python main.py --telegram
 Restart=always
 RestartSec=10
 
@@ -118,27 +122,27 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable soclose-bot
-sudo systemctl start soclose-bot
+sudo systemctl enable wa-sender
+sudo systemctl start wa-sender
 ```
 
 ### 1.5 Dashboard Streamlit (optionnel)
 
 ```bash
-sudo nano /etc/systemd/system/soclose-dashboard.service
+sudo nano /etc/systemd/system/wa-dashboard.service
 ```
 
 ```ini
 [Unit]
-Description=SoClose Community Dashboard
+Description=WhatsApp Bulk Sender Dashboard
 After=network.target
 
 [Service]
 Type=simple
-User=soclose
-WorkingDirectory=/home/soclose/WhatsappSender
-Environment=PATH=/home/soclose/WhatsappSender/venv/bin:/usr/bin
-ExecStart=/home/soclose/WhatsappSender/venv/bin/streamlit run dashboard.py --server.port 8501 --server.headless true
+User=wasender
+WorkingDirectory=/home/wasender/WhatsappSender
+Environment=PATH=/home/wasender/WhatsappSender/venv/bin:/usr/bin
+ExecStart=/home/wasender/WhatsappSender/venv/bin/streamlit run dashboard.py --server.port 8501 --server.headless true
 Restart=always
 RestartSec=10
 
@@ -148,22 +152,22 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable soclose-dashboard
-sudo systemctl start soclose-dashboard
+sudo systemctl enable wa-dashboard
+sudo systemctl start wa-dashboard
 ```
 
 ### 1.6 Verification
 
 ```bash
 # Verifier les services
-sudo systemctl status soclose-bot
-sudo systemctl status soclose-dashboard
+sudo systemctl status wa-sender
+sudo systemctl status wa-dashboard
 
 # Health check
-curl https://bot.ton-domaine.com/health
+curl https://bot.votre-domaine.com/health
 
 # Logs
-sudo journalctl -u soclose-bot -f
+sudo journalctl -u wa-sender -f
 ```
 
 ---
@@ -191,23 +195,23 @@ CMD ["python", "main.py", "--telegram"]
 
 ```bash
 # Build
-docker build -t soclose-bot .
+docker build -t wa-sender .
 
 # Run (mode Telegram + Webhook)
 docker run -d \
-  --name soclose-bot \
+  --name wa-sender \
   --env-file .env \
   -p 8000:8000 \
   --restart unless-stopped \
-  soclose-bot
+  wa-sender
 
 # Run Dashboard
 docker run -d \
-  --name soclose-dashboard \
+  --name wa-dashboard \
   --env-file .env \
   -p 8501:8501 \
   --restart unless-stopped \
-  soclose-bot \
+  wa-sender \
   streamlit run dashboard.py --server.port 8501 --server.headless true
 ```
 
@@ -248,23 +252,23 @@ docker compose up -d
 
 ```bash
 # Redemarrer le bot
-sudo systemctl restart soclose-bot
+sudo systemctl restart wa-sender
 
 # Voir les logs en temps reel
-sudo journalctl -u soclose-bot -f
+sudo journalctl -u wa-sender -f
 
 # Mise a jour du code
-cd /home/soclose/WhatsappSender
+cd /home/wasender/WhatsappSender
 git pull
 source venv/bin/activate
 pip install -r requirements.txt
-sudo systemctl restart soclose-bot
+sudo systemctl restart wa-sender
 
 # Backup de la base de donnees
-cp community_bot.db community_bot.db.bak
+cp whatsapp_sender.db whatsapp_sender.db.bak
 
 # Verifier la sante
-curl -s https://bot.ton-domaine.com/health | python3 -m json.tool
+curl -s https://bot.votre-domaine.com/health | python3 -m json.tool
 ```
 
 ---
@@ -273,9 +277,10 @@ curl -s https://bot.ton-domaine.com/health | python3 -m json.tool
 
 - **Ne jamais commiter le fichier `.env`** — il contient les secrets
 - **Restreindre les admin Telegram** — `TELEGRAM_ADMIN_IDS`
-- **Sauvegarder la DB regulierement** — `community_bot.db`
+- **Sauvegarder la DB regulierement** — `whatsapp_sender.db`
 - **SSL/TLS obligatoire** — Meta et Twilio l'exigent pour les webhooks
 - **Ne pas exposer le port 8000** directement — toujours passer par Nginx
+- **Definir un `DASHBOARD_PASSWORD`** — si le dashboard est expose
 
 ---
 
@@ -283,12 +288,11 @@ curl -s https://bot.ton-domaine.com/health | python3 -m json.tool
 
 ### Pour Twilio
 1. Console Twilio > Messaging > WhatsApp Sandbox Settings
-2. **When a message comes in** : `https://bot.ton-domaine.com/twilio-webhook`
-3. **Status callback URL** : `https://bot.ton-domaine.com/twilio-status`
+2. **Status callback URL** : `https://bot.votre-domaine.com/twilio-status`
 
 ### Pour Meta
 1. Meta Developers > WhatsApp > Configuration
-2. **Callback URL** : `https://bot.ton-domaine.com/webhook`
+2. **Callback URL** : `https://bot.votre-domaine.com/webhook`
 3. **Verify Token** : valeur de `WA_VERIFY_TOKEN` dans `.env`
 4. S'abonner aux champs : `messages`
 
@@ -298,3 +302,9 @@ curl -s https://bot.ton-domaine.com/health | python3 -m json.tool
 
 - [SETUP_GUIDE.md](SETUP_GUIDE.md) — Configuration des providers
 - [README.md](README.md) — Documentation complete
+
+---
+
+<p align="center">
+  <em><a href="https://github.com/SoCloseSociety">SoClose Society</a> — <a href="https://soclose.co">soclose.co</a> — <a href="mailto:hello@soclose.co">hello@soclose.co</a></em>
+</p>
