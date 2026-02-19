@@ -1,90 +1,103 @@
 <p align="center">
-  <img src="https://github.com/SoCloseSociety.png" width="120" alt="SoClose Society Logo">
-</p>
-
-<h1 align="center">WhatsApp Bulk Sender</h1>
-
-<p align="center">
-  <strong>Outil open-source d'envoi de messages WhatsApp en masse</strong><br>
-  Importez vos contacts par CSV, personnalisez vos messages et envoyez en un clic.<br>
-  <em>Multi-provider : Twilio & Meta Cloud API — CLI, Dashboard Web & Bot Telegram</em>
+  <img src="assets/banner.svg" alt="WhatsApp Bulk Sender" width="900">
 </p>
 
 <p align="center">
-  <a href="https://github.com/SoCloseSociety/WhatsappSender/stargazers"><img src="https://img.shields.io/github/stars/SoCloseSociety/WhatsappSender?style=for-the-badge&color=gold" alt="Stars"></a>
-  <a href="https://github.com/SoCloseSociety/WhatsappSender/network/members"><img src="https://img.shields.io/github/forks/SoCloseSociety/WhatsappSender?style=for-the-badge&color=blue" alt="Forks"></a>
-  <a href="https://github.com/SoCloseSociety/WhatsappSender/blob/main/LICENSE"><img src="https://img.shields.io/github/license/SoCloseSociety/WhatsappSender?style=for-the-badge&color=green" alt="License"></a>
-  <img src="https://img.shields.io/badge/python-3.11+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/WhatsApp-25D366?style=for-the-badge&logo=whatsapp&logoColor=white" alt="WhatsApp">
+  <strong>Send bulk WhatsApp messages via Twilio or Meta Cloud API — CLI, Web Dashboard & Telegram Bot.</strong>
 </p>
 
 <p align="center">
-  <a href="#fonctionnalites">Fonctionnalites</a> &bull;
-  <a href="#installation-rapide">Installation</a> &bull;
-  <a href="#utilisation">Utilisation</a> &bull;
-  <a href="#architecture">Architecture</a> &bull;
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-575ECF?style=flat-square" alt="License: MIT"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.11%2B-575ECF?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+"></a>
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-575ECF?style=flat-square" alt="Platform">
+  <img src="https://img.shields.io/badge/WhatsApp-API-575ECF?style=flat-square&logo=whatsapp&logoColor=white" alt="WhatsApp">
+  <a href="https://github.com/SoCloseSociety/WhatsappSender/stargazers"><img src="https://img.shields.io/github/stars/SoCloseSociety/WhatsappSender?style=flat-square&color=575ECF" alt="GitHub Stars"></a>
+  <a href="https://github.com/SoCloseSociety/WhatsappSender/issues"><img src="https://img.shields.io/github/issues/SoCloseSociety/WhatsappSender?style=flat-square&color=575ECF" alt="Issues"></a>
+  <a href="https://github.com/SoCloseSociety/WhatsappSender/network/members"><img src="https://img.shields.io/github/forks/SoCloseSociety/WhatsappSender?style=flat-square&color=575ECF" alt="Forks"></a>
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick Start</a> &bull;
+  <a href="#key-features">Features</a> &bull;
   <a href="#configuration">Configuration</a> &bull;
-  <a href="#deploiement">Deploiement</a> &bull;
-  <a href="#contribuer">Contribuer</a>
+  <a href="#faq">FAQ</a> &bull;
+  <a href="#contributing">Contributing</a>
 </p>
 
 ---
 
-## Qu'est-ce que c'est ?
+## What is WhatsApp Bulk Sender?
 
-**WhatsApp Bulk Sender** est un outil Python open-source pour envoyer des messages WhatsApp en masse a une liste de contacts. Il supporte **Twilio** et **Meta Cloud API** comme providers, offre 3 interfaces (CLI, Dashboard Web, Bot Telegram) et gere automatiquement le rate limiting, le suivi de livraison et les templates de messages.
+**WhatsApp Bulk Sender** is a free, open-source **WhatsApp automation tool** built with Python. It lets you send personalized WhatsApp messages to hundreds of contacts from a CSV file, using either **Twilio** or **Meta Cloud API** as the messaging provider.
 
-**Cas d'usage :** Notifications clients, campagnes marketing, rappels, confirmations de commande, communications de masse pour associations, startups et PMEs.
+The tool offers three interfaces: an interactive CLI, a Streamlit web dashboard, and a Telegram bot for remote administration. It handles CSV import, phone number normalization (E.164), campaign management, delivery tracking, and rate limiting out of the box.
 
-## Fonctionnalites
+### Who is this for?
 
-| Fonctionnalite | Description |
-|---|---|
-| **Import CSV intelligent** | Importe depuis Shopify, Google Contacts ou n'importe quel CSV. Detection automatique des colonnes. |
-| **Envoi en masse** | Envoi personnalise a des centaines de contacts avec suivi en temps reel |
-| **Multi-Provider** | Twilio (sandbox gratuit) ou Meta Cloud API (business) |
-| **Placeholders dynamiques** | Personnalisez avec `{first_name}`, `{last_name}`, `{phone}`, `{name}` |
-| **Templates reutilisables** | Sauvegardez vos messages et reutilisez-les |
-| **Gestion par campagnes** | Organisez vos envois, consultez l'historique et les stats |
-| **Delivery Tracking** | Suivi automatique : sent → delivered → read → failed |
-| **Rate Limiting** | Debit configurable pour respecter les limites des providers |
-| **3 Interfaces** | CLI interactive, Dashboard Web (Streamlit), Bot Telegram |
-| **Dry Run** | Testez vos campagnes sans envoyer de vrais messages |
-| **Normalisation E.164** | Numeros normalises automatiquement (+33612345678) |
-| **Base SQLite async** | WAL mode pour la concurrence, zero config |
+- **Startup Founders** sending product updates to early adopters
+- **E-commerce Sellers** notifying customers about orders and promotions
+- **Community Managers** broadcasting messages to members
+- **Marketing Teams** running WhatsApp outreach campaigns
+- **Event Organizers** sending reminders and confirmations
+- **Developers** building WhatsApp messaging integrations
 
-## Installation rapide
+### Key Features
 
-### Pre-requis
+- **Smart CSV Import** - Auto-detects columns from Shopify, WooCommerce, Google Contacts
+- **Multi-Provider** - Twilio (sandbox free) or Meta Cloud API (business)
+- **Dynamic Placeholders** - Personalize with {first_name}, {last_name}, {phone}
+- **Reusable Templates** - Save and reuse message templates
+- **Campaign Management** - Organize sends by campaign with delivery tracking
+- **Delivery Tracking** - Real-time status: sent → delivered → read → failed
+- **Rate Limiting** - Configurable message throttling to respect API limits
+- **3 Interfaces** - CLI interactive, Web Dashboard (Streamlit), Telegram Bot
+- **Dry Run Mode** - Test campaigns before sending real messages
+- **E.164 Normalization** - Phone numbers normalized automatically
+- **SQLite Database** - WAL mode for concurrency, zero config
+- **Cross-Platform** - Works on Windows, macOS, and Linux
+- **Free & Open Source** - MIT license
 
-- **Python 3.11+**
-- Un compte [Twilio](https://www.twilio.com/) (sandbox gratuit) **ou** [Meta Developer](https://developers.facebook.com/) (business)
+---
 
-### Setup en 4 etapes
+## Quick Start
+
+### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Python** | Version 3.11 or higher ([Download](https://www.python.org/downloads/)) |
+| **Twilio Account** | Free sandbox available ([Sign up](https://www.twilio.com/)) |
+| **or Meta Developer** | For production use ([Sign up](https://developers.facebook.com/)) |
+
+### Installation
 
 ```bash
-# 1. Cloner le repo
+# 1. Clone the repository
 git clone https://github.com/SoCloseSociety/WhatsappSender.git
 cd WhatsappSender
 
-# 2. Creer l'environnement virtuel
+# 2. (Recommended) Create a virtual environment
 python -m venv venv
-source venv/bin/activate      # macOS/Linux
-# venv\Scripts\activate       # Windows
 
-# 3. Installer les dependances
+# Activate it:
+# Windows:
+venv\Scripts\activate
+# macOS / Linux:
+source venv/bin/activate
+
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Configurer l'environnement
+# 4. Configure
 cp .env.example .env
-# Editer .env avec vos identifiants Twilio ou Meta
+# Edit .env with your Twilio or Meta credentials
 ```
 
-> **Guide detaille :** [SETUP_GUIDE.md](SETUP_GUIDE.md) — Configuration pas a pas de Twilio, Meta et Telegram
+> **Detailed setup:** [SETUP_GUIDE.md](SETUP_GUIDE.md) — Step-by-step configuration for Twilio, Meta and Telegram
 
-## Utilisation
+### Usage
 
-### Mode CLI (defaut)
+#### CLI Mode (default)
 
 ```bash
 python main.py
@@ -96,66 +109,64 @@ python main.py
   ║     by SoClose Society                    ║
   ╚════════════════════════════════════════════╝
 
-  1  📥  Importer des contacts (CSV)
-  2  👥  Voir les contacts
-  3  📢  Envoyer des messages
-  4  📊  Statistiques
-  5  📋  Templates
-  6  📨  Historique des envois
-  7  💬  Tester un message
-  8  🗑   Supprimer tous les contacts
-  0  🚪  Quitter
+  1  Import contacts (CSV)
+  2  View contacts
+  3  Send messages
+  4  Statistics
+  5  Templates
+  6  Send history
+  7  Test a message
+  8  Delete all contacts
+  0  Quit
 ```
 
-**Workflow typique :**
-1. Placez votre fichier `.csv` dans le repertoire du projet
-2. Option `1` : Importez les contacts et creez une campagne
-3. Option `3` : Choisissez la campagne, composez le message, confirmez
-4. Option `4` : Consultez les stats de livraison
+**Typical workflow:**
+1. Place your `.csv` file in the project directory
+2. Option `1`: Import contacts and create a campaign
+3. Option `3`: Choose the campaign, compose the message, confirm
+4. Option `4`: Check delivery stats
 
-### Mode Dashboard Web (Streamlit)
+#### Web Dashboard (Streamlit)
 
 ```bash
 python main.py --dashboard
 ```
 
-Interface web complete sur `http://localhost:8501` avec :
-- Import CSV par drag & drop
-- Envoi avec apercu en temps reel
-- Statistiques visuelles (graphiques)
-- Gestion des templates et contacts
-- Protection par mot de passe (optionnel)
+Full web interface on `http://localhost:8501` with:
+- CSV drag & drop import
+- Real-time sending progress
+- Visual statistics (charts)
+- Template and contact management
 
-### Mode Telegram Bot (administration a distance)
+#### Telegram Bot (remote administration)
 
 ```bash
 python main.py --telegram
 ```
 
-Commandes Telegram :
-| Commande | Description |
-|---|---|
-| `/start` | Menu principal avec boutons |
-| `/import` | Importer un CSV (envoyer le fichier) |
-| `/send` | Choisir une campagne et envoyer |
-| `/stats` | Statistiques d'envoi |
-| `/contacts` | Liste des contacts |
-| `/templates` | Voir les templates |
-| `/cancel` | Annuler l'operation en cours |
+| Command | Description |
+|---------|-------------|
+| `/start` | Main menu with buttons |
+| `/import` | Import a CSV (send the file) |
+| `/send` | Choose a campaign and send |
+| `/stats` | Sending statistics |
+| `/contacts` | Contact list |
+| `/templates` | View templates |
+| `/cancel` | Cancel current operation |
 
-> Acces restreint aux IDs admin configures dans `.env`
-
-### Mode Webhook seul
+#### Webhook Server
 
 ```bash
 python main.py --webhook
 ```
 
-Serveur FastAPI pour les callbacks de livraison. API docs sur `http://localhost:8000/docs`.
+FastAPI server for delivery callbacks. API docs at `http://localhost:8000/docs`.
 
-## Format CSV
+---
 
-Le fichier CSV doit contenir au minimum une colonne **phone**. Exemples :
+## CSV Format
+
+The CSV file must contain at minimum a **phone** column:
 
 ```csv
 phone,first_name,last_name,email
@@ -164,87 +175,36 @@ phone,first_name,last_name,email
 0612345678,Pierre,Durand,
 ```
 
-**Colonnes reconnues automatiquement :**
+**Auto-detected columns:**
 
-| Interne | Colonnes acceptees |
-|---|---|
-| `phone` | phone, telephone, tel, mobile, numero, billing phone, shipping phone |
-| `first_name` | first_name, first name, firstname, prenom, billing first name |
-| `last_name` | last_name, last name, lastname, nom, billing last name |
+| Internal | Accepted columns |
+|----------|-----------------|
+| `phone` | phone, telephone, tel, mobile, numero, billing phone |
+| `first_name` | first_name, firstname, prenom, billing first name |
+| `last_name` | last_name, lastname, nom, billing last name |
 | `email` | email, e-mail, billing email |
-| `name` | name, full_name, fullname (auto-split en first/last) |
+| `name` | name, full_name, fullname (auto-split) |
 
-> Compatible Shopify, WooCommerce, Google Contacts, Mailchimp et tout CSV standard.
-> Les numeros sont normalises automatiquement en format E.164 (+33612345678).
+> Compatible with Shopify, WooCommerce, Google Contacts, Mailchimp and any standard CSV.
 
-## Architecture
-
-```
-WhatsappSender/
-│
-├── main.py                  # Point d'entree — routeur CLI/Telegram/Dashboard/Webhook
-│
-├── Interfaces
-│   ├── cli.py               # CLI interactive — import, envoi, stats
-│   ├── telegram_bot.py      # Bot Telegram — administration a distance
-│   ├── dashboard.py         # Dashboard web Streamlit
-│   └── webhook.py           # Serveur FastAPI — callbacks de livraison
-│
-├── Core
-│   ├── whatsapp.py          # Client WhatsApp multi-provider (Twilio/Meta)
-│   ├── csv_handler.py       # Import CSV & normalisation des numeros
-│   ├── database.py          # Couche donnees SQLite async (WAL mode)
-│   └── config.py            # Chargement des variables d'environnement
-│
-├── Config
-│   ├── .env.example         # Template de configuration
-│   ├── requirements.txt     # Dependances Python
-│   └── .gitignore           # Fichiers exclus du repo
-│
-└── Docs
-    ├── README.md             # Ce fichier
-    ├── SETUP_GUIDE.md        # Guide de configuration detaille
-    └── DEPLOYMENT.md         # Deploiement VPS / Docker
-```
-
-### Schema de la base de donnees
-
-```
-contacts ─────────┐
-  id (PK)          │
-  first_name       │
-  last_name        ├── campaign_contacts ──── campaigns
-  phone (UNIQUE)   │     campaign_id (FK)       id (PK)
-  email            │     contact_id (FK)        name
-  created_at       │                            message
-                   │                            status
-message_log ──────┘                            created_at
-  id (PK)
-  contact_id (FK → SET NULL)    templates
-  campaign_id (FK)                id (PK)
-  phone                           name (UNIQUE)
-  content                         category
-  status                          body
-  wa_message_id                   created_at
-  sent_at
-```
+---
 
 ## Configuration
 
-### Comparatif des providers
+### Provider Comparison
 
 | | Twilio | Meta Cloud API |
 |---|---|---|
-| **Difficulte** | Facile (5 min) | Moyen (15 min) |
-| **Sandbox gratuit** | Oui | Non |
-| **Prix (marketing)** | ~$0.05/msg + markup | ~$0.05/msg |
-| **Prix (utilitaire)** | ~$0.02/msg + markup | ~$0.02/msg |
-| **Recommande pour** | Tests & prototypage | Production & business |
+| **Difficulty** | Easy (5 min) | Medium (15 min) |
+| **Free sandbox** | Yes | No |
+| **Price (marketing)** | ~$0.05/msg + markup | ~$0.05/msg |
+| **Price (utility)** | ~$0.02/msg + markup | ~$0.02/msg |
+| **Recommended for** | Testing & prototyping | Production & business |
 
-### Variables d'environnement principales
+### Environment Variables
 
 ```bash
-# Provider WhatsApp (twilio ou meta)
+# WhatsApp Provider (twilio or meta)
 WA_PROVIDER=twilio
 
 # Twilio
@@ -257,7 +217,7 @@ WA_PHONE_NUMBER_ID=123456789012345
 WA_ACCESS_TOKEN=your_access_token
 WA_API_VERSION=v21.0
 
-# Telegram Bot (optionnel)
+# Telegram Bot (optional)
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_ADMIN_IDS=123456789
 
@@ -268,15 +228,52 @@ WA_MESSAGES_PER_SECOND=50
 DASHBOARD_PASSWORD=your_password
 ```
 
-> **Configuration complete :** voir [.env.example](.env.example) et [SETUP_GUIDE.md](SETUP_GUIDE.md)
+> **Full configuration:** see [.env.example](.env.example) and [SETUP_GUIDE.md](SETUP_GUIDE.md)
 
-## Deploiement
+---
 
-Le projet peut etre deploye sur un VPS (Ubuntu/Debian) ou avec Docker.
+## Architecture
+
+```
+WhatsappSender/
+│
+├── main.py                  # Entry point — CLI/Telegram/Dashboard/Webhook router
+│
+├── Interfaces
+│   ├── cli.py               # Interactive CLI — import, send, stats
+│   ├── telegram_bot.py      # Telegram bot — remote administration
+│   ├── dashboard.py         # Streamlit web dashboard
+│   └── webhook.py           # FastAPI server — delivery callbacks
+│
+├── Core
+│   ├── whatsapp.py          # Multi-provider WhatsApp client (Twilio/Meta)
+│   ├── csv_handler.py       # CSV import & phone normalization
+│   ├── database.py          # SQLite async layer (WAL mode)
+│   └── config.py            # Environment variable loading
+│
+├── Config
+│   ├── .env.example         # Configuration template
+│   ├── requirements.txt     # Python dependencies
+│   └── .gitignore           # Excluded files
+│
+├── Docs
+│   ├── README.md            # This file
+│   ├── SETUP_GUIDE.md       # Detailed configuration guide
+│   └── DEPLOYMENT.md        # VPS / Docker deployment
+│
+├── assets/
+│   └── banner.svg           # Project banner
+├── LICENSE                  # MIT License
+└── CONTRIBUTING.md          # Contribution guidelines
+```
+
+---
+
+## Deployment
 
 ```bash
-# VPS — Service systemd
-python main.py --telegram    # Bot Telegram + webhooks (production)
+# VPS — systemd service
+python main.py --telegram    # Telegram bot + webhooks (production)
 
 # Docker
 docker build -t whatsapp-sender .
@@ -286,54 +283,113 @@ docker run -d --env-file .env -p 8000:8000 whatsapp-sender
 docker compose up -d
 ```
 
-> **Guide complet :** [DEPLOYMENT.md](DEPLOYMENT.md) — Nginx, SSL, systemd, Docker Compose
+> **Full guide:** [DEPLOYMENT.md](DEPLOYMENT.md) — Nginx, SSL, systemd, Docker Compose
 
-## Securite
+---
 
-- Le fichier `.env` contient les secrets — **ne jamais le commiter**
-- Acces Telegram restreint aux `TELEGRAM_ADMIN_IDS`
-- Dashboard protege par mot de passe (comparaison timing-safe)
-- SQLite en mode WAL pour la concurrence
-- Foreign keys actives pour l'integrite referentielle
-- Rate limiting configurable pour respecter les limites API
-- Template rendering securise contre l'injection
+## Troubleshooting
 
-## Contribuer
+### Twilio sandbox not working
 
-Les contributions sont les bienvenues ! Que ce soit un bug fix, une nouvelle fonctionnalite ou une amelioration de la documentation.
+1. Make sure recipients have opted in by sending "join <sandbox-keyword>" to the Twilio number
+2. Verify your `TWILIO_WHATSAPP_FROM` matches the sandbox number
+3. Check Twilio console logs for error details
 
-1. **Fork** le repo
-2. Cree une branche (`git checkout -b feature/ma-feature`)
-3. **Commit** (`git commit -m "Add ma feature"`)
-4. **Push** (`git push origin feature/ma-feature`)
-5. Ouvre une **Pull Request**
+### Messages not delivering
 
-### Idees de contributions
+1. Verify phone numbers are in E.164 format (+33612345678)
+2. Check provider dashboard for error logs
+3. Ensure rate limiting is configured properly
 
-- Support de nouveaux providers (Vonage, MessageBird)
-- Interface web React/Vue en remplacement de Streamlit
-- Scheduling des campagnes (envoi differe)
-- Support des media (images, documents, audio)
-- Import depuis Google Sheets / API CRM
+### Dashboard won't start
 
-## Licence
+```bash
+pip install --upgrade streamlit
+streamlit run dashboard.py
+```
 
-[MIT](LICENSE) — Libre d'utilisation, modification et distribution.
+### Import CSV fails
+
+1. Ensure your CSV has a `phone` column (or recognized alternative)
+2. Check CSV encoding (UTF-8 recommended)
+3. Verify phone number format
+
+---
+
+## FAQ
+
+**Q: Is this free?**
+A: The tool is 100% free and open source. You only pay for the WhatsApp API provider (Twilio sandbox is free for testing).
+
+**Q: Twilio or Meta — which should I use?**
+A: Twilio for testing and prototyping (free sandbox). Meta Cloud API for production and business use.
+
+**Q: How many messages can I send?**
+A: Depends on your provider plan. Twilio free sandbox is limited. Meta Business has higher limits.
+
+**Q: Can I personalize messages?**
+A: Yes. Use placeholders like {first_name}, {last_name}, {phone} in your message templates.
+
+**Q: Can I test without sending real messages?**
+A: Yes. Use the Dry Run mode to simulate a campaign.
+
+**Q: Does it work on Mac / Linux?**
+A: Yes. Fully cross-platform on Windows, macOS, and Linux.
+
+**Q: Can I manage it remotely?**
+A: Yes. Use the Telegram bot interface for remote campaign management.
+
+---
+
+## Alternatives Comparison
+
+| Feature | WhatsApp Bulk Sender | Manual Sending | Twilio Console | Paid SaaS Tools |
+|---------|---------------------|----------------|----------------|----------------|
+| Price | **Free** | Free | Pay-per-message | $50-300/mo |
+| Bulk sending | Yes | No | Limited | Yes |
+| CSV import | Yes (auto-detect) | N/A | No | Yes |
+| Campaign tracking | Yes | Manual | Basic | Yes |
+| Multiple interfaces | 3 (CLI, Web, Telegram) | N/A | Web only | Web only |
+| Open source | Yes | N/A | No | No |
+| Templates | Yes | N/A | Yes | Yes |
+| Dry run | Yes | N/A | No | Varies |
+
+---
+
+## Contributing
+
+Contributions are welcome! Please read the [Contributing Guide](CONTRIBUTING.md) before submitting a pull request.
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+## Disclaimer
+
+This tool is provided for **legitimate business communication purposes only**. Users are responsible for complying with WhatsApp's Business Policy, their provider's terms, and applicable laws (GDPR, TCPA, etc.). Do not use this tool for spam. The authors are not responsible for any misuse.
 
 ---
 
 <p align="center">
-  <strong>Developpe par <a href="https://github.com/SoCloseSociety">SoClose Society</a></strong><br>
-  <em>Digital Innovation Through Automation & AI</em><br><br>
-  <a href="https://soclose.co">soclose.co</a> &bull;
-  <a href="https://github.com/SoCloseSociety">GitHub</a> &bull;
-  <a href="mailto:hello@soclose.co">hello@soclose.co</a>
+  <strong>If this project helps you, please give it a star!</strong><br>
+  It helps others discover this tool.<br><br>
+  <a href="https://github.com/SoCloseSociety/WhatsappSender">
+    <img src="https://img.shields.io/github/stars/SoCloseSociety/WhatsappSender?style=for-the-badge&logo=github&color=575ECF" alt="Star this repo">
+  </a>
 </p>
+
+<br>
 
 <p align="center">
-  <a href="https://soclose.co"><img src="https://img.shields.io/badge/SoClose-Agency-575ECF?style=flat-square" alt="SoClose Agency"></a>
-  <a href="https://github.com/SoCloseSociety"><img src="https://img.shields.io/badge/SoClose-Society-1b1b1b?style=flat-square" alt="SoClose Society"></a>
+  <sub>Built with purpose by <a href="https://soclose.co"><strong>SoClose</strong></a> &mdash; Digital Innovation Through Automation & AI</sub><br>
+  <sub>
+    <a href="https://soclose.co">Website</a> &bull;
+    <a href="https://linkedin.com/company/soclose-agency">LinkedIn</a> &bull;
+    <a href="https://twitter.com/SoCloseAgency">Twitter</a> &bull;
+    <a href="mailto:hello@soclose.co">Contact</a>
+  </sub>
 </p>
-
-<!-- SEO Keywords -->
-<!-- whatsapp bulk sender, whatsapp mass message, bulk whatsapp python, python whatsapp sender, twilio whatsapp sender, meta cloud api whatsapp, csv whatsapp sender, whatsapp broadcast tool, whatsapp marketing tool, send bulk whatsapp messages, whatsapp automation python, open source whatsapp sender, whatsapp campaign manager, envoi whatsapp en masse, outil whatsapp bulk, soclose society, soclose.co, whatsapp api python, whatsapp bulk messaging, mass whatsapp sender free, whatsapp sender bot, bulk message whatsapp, whatsapp business api python, python whatsapp bot, telegram whatsapp admin bot -->
