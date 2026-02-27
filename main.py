@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+""
 WhatsApp Bulk Sender — Entry Point
 Simple bulk WhatsApp message sender with CSV import.
 
@@ -8,7 +8,7 @@ Usage:
     python main.py --telegram   # Telegram bot + webhook server
     python main.py --dashboard  # Streamlit web dashboard
     python main.py --webhook    # Webhook server only
-"""
+""
 
 import argparse
 import asyncio
@@ -17,8 +17,10 @@ import subprocess
 import sys
 import os
 import threading
+from dotenv import load_dotenv
 
-import config
+# Load environment variables from .env file
+load_dotenv()
 
 # -- Logging ---------------------------------------------------
 
@@ -28,7 +30,6 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("main")
-
 
 # -- Dependency Check ------------------------------------------
 
@@ -59,10 +60,10 @@ def check_dependencies(mode: str = "cli"):
             missing.append(package)
 
     if missing:
-        print(f"\n❌ Packages manquants: {', '.join(missing)}")
+        print(f"
+❌ Packages manquants: {', '.join(missing)}")
         print(f"   Installe-les avec: pip install -r requirements.txt\n")
         sys.exit(1)
-
 
 # -- Modes -----------------------------------------------------
 
@@ -70,7 +71,6 @@ async def run_cli_mode():
     """Interactive CLI for local testing and sending."""
     from cli import run_cli
     await run_cli()
-
 
 async def run_telegram_mode():
     """Telegram bot + FastAPI webhook server."""
@@ -118,7 +118,6 @@ async def run_telegram_mode():
             await telegram_app.updater.stop()
             await telegram_app.stop()
 
-
 async def run_webhook_mode():
     """FastAPI webhook server only."""
     import uvicorn
@@ -136,7 +135,6 @@ async def run_webhook_mode():
     server = uvicorn.Server(server_config)
     await server.serve()
 
-
 def run_dashboard_mode():
     """Streamlit web dashboard."""
     try:
@@ -149,14 +147,13 @@ def run_dashboard_mode():
         check=True,
     )
 
-
 # -- Main ------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(
         description=f"{config.BOT_NAME} v{config.BOT_VERSION}",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+        epilog=""
 Modes:
   (default)     CLI interactif — import CSV, envoi en masse
   --telegram    Bot Telegram + serveur webhook
@@ -168,7 +165,7 @@ Exemples:
   python main.py --telegram         # Production
   python main.py --dashboard        # Web UI
   python main.py --webhook          # API seule
-        """,
+        "",
     )
     parser.add_argument("--telegram", action="store_true", help="Lancer le bot Telegram + webhook")
     parser.add_argument("--webhook", action="store_true", help="Lancer le serveur webhook seul")
@@ -191,7 +188,7 @@ Exemples:
     if args.dashboard:
         run_dashboard_mode()
     elif args.telegram:
-        if not config.TELEGRAM_BOT_TOKEN:
+        if not os.getenv("TELEGRAM_BOT_TOKEN"):
             logger.error("TELEGRAM_BOT_TOKEN requis pour le mode Telegram")
             sys.exit(1)
         asyncio.run(run_telegram_mode())
@@ -199,7 +196,6 @@ Exemples:
         asyncio.run(run_webhook_mode())
     else:
         asyncio.run(run_cli_mode())
-
 
 if __name__ == "__main__":
     main()
