@@ -1,7 +1,5 @@
-"""
-WhatsApp Bulk Sender — Configuration
+# WhatsApp Bulk Sender — Configuration
 Loads settings from environment variables (.env file).
-"""
 
 from __future__ import annotations
 
@@ -10,12 +8,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
 # -- Telegram Bot (admin) ------------------------------------
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_ADMIN_IDS = [
     int(uid.strip())
-    for uid in os.getenv("TELEGRAM_ADMIN_IDS", "").split(",")
+    for uid in os.getenv("TELEGRAM_ADMIN_IDS", ").split(",")
     if uid.strip().lstrip("-").isdigit()
 ]
 
@@ -23,15 +20,15 @@ TELEGRAM_ADMIN_IDS = [
 WA_PROVIDER = os.getenv("WA_PROVIDER", "twilio").lower()  # twilio | meta
 
 # Twilio
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
-TWILIO_WHATSAPP_FROM = os.getenv("TWILIO_WHATSAPP_FROM", "")
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_WHATSAPP_FROM = os.getenv("TWILIO_WHATSAPP_FROM")
 
 # Meta Cloud API
-WA_PHONE_NUMBER_ID = os.getenv("WA_PHONE_NUMBER_ID", "")
-WA_ACCESS_TOKEN = os.getenv("WA_ACCESS_TOKEN", "")
+WA_PHONE_NUMBER_ID = os.getenv("WA_PHONE_NUMBER_ID")
+WA_ACCESS_TOKEN = os.getenv("WA_ACCESS_TOKEN")
 WA_API_VERSION = os.getenv("WA_API_VERSION", "v21.0")
-WA_VERIFY_TOKEN = os.getenv("WA_VERIFY_TOKEN", "")
+WA_VERIFY_TOKEN = os.getenv("WA_VERIFY_TOKEN")
 WA_BASE_URL = f"https://graph.facebook.com/{WA_API_VERSION}/{WA_PHONE_NUMBER_ID}/messages"
 
 # -- Webhook Server -------------------------------------------
@@ -57,7 +54,7 @@ COMMUNITY_URL = "https://github.com/SoCloseSociety"
 WEBSITE_URL = os.getenv("WEBSITE_URL", "https://soclose.co")
 
 # -- Dashboard ------------------------------------------------
-DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "")
+DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD")
 
 
 def validate() -> list[str]:
