@@ -1,7 +1,5 @@
-"""
-WhatsApp Bulk Sender — Configuration
+# WhatsApp Bulk Sender — Configuration
 Loads settings from environment variables (.env file).
-"""
 
 from __future__ import annotations
 
@@ -10,12 +8,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
 # -- Telegram Bot (admin) ------------------------------------
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_ADMIN_IDS = [
     int(uid.strip())
-    for uid in os.getenv("TELEGRAM_ADMIN_IDS", "").split(",")
+    for uid in os.getenv("TELEGRAM_ADMIN_IDS", ").split(",")
     if uid.strip().lstrip("-").isdigit()
 ]
 
