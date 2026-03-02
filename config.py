@@ -1,21 +1,20 @@
-"""
-WhatsApp Bulk Sender — Configuration
+# WhatsApp Bulk Sender — Configuration
 Loads settings from environment variables (.env file).
-"""
 
 from __future__ import annotations
 
 import os
 from dotenv import load_dotenv
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 load_dotenv()
-
 
 # -- Telegram Bot (admin) ------------------------------------
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_ADMIN_IDS = [
     int(uid.strip())
-    for uid in os.getenv("TELEGRAM_ADMIN_IDS", "").split(",")
+    for uid in os.getenv("TELEGRAM_ADMIN_IDS", \'\').split(",")
     if uid.strip().lstrip("-").isdigit()
 ]
 
@@ -49,6 +48,12 @@ try:
     WA_MESSAGES_PER_SECOND = int(os.getenv("WA_MESSAGES_PER_SECOND", "50"))
 except ValueError:
     WA_MESSAGES_PER_SECOND = 50
+
+limiter = Limiter(
+    app=None,
+    key_func=get_remote_address,
+    default_limits=[f'{WA_MESSAGES_PER_SECOND}/second']
+)
 
 # -- Bot Identity ---------------------------------------------
 BOT_NAME = "WhatsApp Bulk Sender"
